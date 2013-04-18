@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="jenaorm" default="all"  xmlns:ivy="antlib:org.apache.ivy.ant">
+<property file="build.properties"/>
+
+
+<property name="ivy.jar.file" value="${ivy.jar.dir}/ivy.jar" />
+
+
+
+<target name="all" depends="jenaorm"></target>
+
+
+<target name="jenaorm" depends="generate-sources,ivy.libs">
+	<mkdir dir="dist"/>
+	<mkdir dir="tmp"/>
+	<javac srcdir="src/main/generated-sources" destdir="tmp" debug="true" includeantruntime="no">
+		<classpath refid="lib.path.id"/>
+		<sourcepath>
+			<pathelement location="src/main/generated-sources/javacc"/>
+			<pathelement location="src/main/java"/>
+		</sourcepath>
+		<include name="**/JenaGenerator.java" />
+	</javac>
+	<pathconvert property="jenaorm.claspath" pathsep=" ">
+		<path refid="lib.path.id" />
+	</pathconvert>	
+	<jar destfile="dist/jenaorm.jar" basedir="tmp">
+		<manifest>
+			<attribute name="Built-By" value="${user.name}"/>
+			<attribute name="Main-Class" value=" com.github.lindenb.jenaorm.JenaGenerator"/>
+		 	<attribute name="Class-Path" value="${jenaorm.claspath}" />
+		</manifest>
+	</jar>
+	<delete dir="tmp"/>
+</target>
+
+
+<target name="generate-sources">
+	<property name="jj.dir" value="./src/main/java/com/github/lindenb/jenaorm"/>
+	<property name="jj.dest" value="./src/main/generated-sources/javacc/com/github/lindenb/jenaorm"/>
+	<mkdir dir="${jj.dest}"/>
+	<delete file="${jj.dest}/TokenMgrError.java"/>
+	<delete file="$jj.dest}/ParseException.java"/>
+	<delete file="${jj.dest}/Token.java"/>
+	<delete file="${jj.dest}/SimpleCharStream.java"/>
+	<exec executable="javacc">
+		<arg value="-OUTPUT_DIRECTORY=${jj.dest}"/>
+		<arg value="${jj.dir}/JenaORM.jj"/>
+	</exec>
+</target>	
+
+
+
+
+    <target name="download-ivy" unless="skip.download">
+
+        <mkdir dir="${ivy.jar.dir}"/>
+        <get src="http://repo1.maven.org/maven2/org/apache/ivy/ivy/${ivy.install.version}/ivy-${ivy.install.version}.jar"
+            dest="${ivy.jar.file}" usetimestamp="true"/>
+    </target>
+
+    <target name="install-ivy" depends="download-ivy" description="--> install ivy">
+        <path id="ivy.lib.path">
+            <fileset dir="${ivy.jar.dir}" includes="*.jar"/>
+        </path>
+        <taskdef
+            resource="org/apache/ivy/ant/antlib.xml"
+            uri="antlib:org.apache.ivy.ant"
+            classpathref="ivy.lib.path"
+        />
+    </target>
+
+
+  <target name="ivy.libs" depends="install-ivy"  description="">
+    <ivy:cachepath pathid="lib.path.id"/>
+  </target>
+
+
+
+</project>

@@ -1,0 +1,495 @@
+options {
+STATIC=false;
+LOOKAHEAD=3;
+FORCE_LA_CHECK=true;
+}
+
+
+PARSER_BEGIN(JenaGenerator)
+
+package com.github.lindenb.jenaorm;
+
+import java.util.*;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.io.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+import org.apache.velocity.Template;
+import org.apache.velocity.VelocityContext;
+import org.apache.velocity.app.Velocity;
+import org.apache.velocity.app.VelocityEngine;
+
+    
+@SuppressWarnings("unchecked")
+public class JenaGenerator
+{
+private List<OntClass> structures=new ArrayList<OntClass>();
+
+
+
+public class OntNode
+	{
+	String rdfType;
+	String name;
+
+	
+	public String getRdfType()
+		{
+		return rdfType;
+		}
+	
+	public String getName()
+		{
+		return name;
+		}
+	public String getJavaName()
+		{
+		return getName().substring(0,1).toUpperCase()+getName().substring(1);
+		}
+	public String toString()
+		{
+		return getName();
+		}
+	}
+	
+public class OntClass extends OntNode
+	{
+	List<OntMethod> methods=new ArrayList<OntMethod>();
+	public List<OntMethod> getMethods()
+		{
+		return this.methods;
+		}
+	}
+
+public class OntMethod extends OntNode
+	{
+	OntType dataType;
+	OntClass owner=null;
+	boolean subject=true;
+	boolean unique=false;
+	boolean indexed=false;
+	boolean typed=false;
+	
+	
+	public boolean isTyped()
+		{
+		return this.typed;
+		}	
+	
+	public boolean isUnique()
+		{
+		return unique;
+		}
+	
+	public boolean isIndexed()
+		{
+		return unique;
+		}
+	
+	public boolean isSubject()
+		{
+		return subject;
+		}
+	
+	
+	public OntClass getOwner()
+		{
+		return this.owner;
+		}
+	
+	public OntType getDataType()
+		{
+		return this.dataType;
+		}
+		
+	public String getGetter()
+		{
+		if(dataType.isPrimitiveType() && OntPrimitiveType.class.cast(dataType).javaClass==Boolean.class)
+			{
+			return "is"+getJavaName();
+			}
+		else
+			{
+			return "get"+getJavaName();
+			}
+		}	
+		
+	}
+
+public abstract class OntType
+	{
+	public abstract String getDecl();
+	public abstract boolean isList();
+	public boolean isUserType() { return false;}
+	public boolean isPrimitiveType() { return false;}
+	}
+public abstract class OntSimpleType extends OntType
+	{
+	@Override
+	public boolean isList()
+		{
+		return false;
+		}
+	}
+public class OntPrimitiveType extends OntSimpleType
+	{
+	Class<?> javaClass;
+	boolean nillable;
+	String decl;
+
+	
+	OntPrimitiveType(String decl,Class<?> javaClass,boolean nillable)
+		{
+		this.decl=decl;
+		this.javaClass=javaClass;
+		this.nillable=nillable;
+		}
+	
+	public String getClassName()
+		{
+		return this.javaClass.getSimpleName();
+		}
+	
+
+	
+	public boolean isNillable()
+		{
+		return nillable;
+		}
+	@Override
+	public boolean isPrimitiveType()
+		{
+		return true;
+		}
+	
+	@Override
+	public String getDecl()
+		{
+		return this.decl;
+		}
+	}
+public class OntUserType extends OntSimpleType
+	{
+	String name;
+	
+	public OntClass getUserClass()
+		{
+		return findOntClassByName(this.name);
+		}
+	
+	@Override
+	public boolean isUserType() { return true;}
+	@Override
+	public String getDecl()
+		{
+		return this.name;
+		}
+	}
+
+public class OntListType extends OntType
+	{
+	OntSimpleType elementType;
+	@Override
+	public String getDecl()
+		{
+		return "java.util.List<"+elementType.getDecl()+">";
+		}
+	
+	public OntSimpleType getElementType()
+		{
+		return elementType;
+		}
+	
+	@Override
+	public boolean isList()
+		{
+		return true;
+		}
+	}
+private OntClass findOntClassByName(String name)
+	{
+	for(OntClass S: this.structures)
+		{
+		if(S.name.equals(name)) return S;
+		}
+	System.err.println("Cannot find class "+name);
+	return null;
+	}
+public static void main(String args[]) throws Exception
+	{
+	int optind=0;
+	File templateFile=null;
+	while(optind< args.length)
+		{
+		if(args[optind].equals("-h"))
+			{
+			
+			return;
+			}
+		else if(args[optind].equals("-T") && optind+1< args.length)
+			{
+			templateFile=new File(args[++optind]);
+			}
+		
+		else if(args[optind].equals("--"))
+			{
+			++optind;
+			break;
+			}
+		else if(args[optind].startsWith("-"))
+			{
+			System.err.println("Unknown option "+args[optind]);
+			System.exit(-1);
+			}
+		else
+			{
+			break;
+			}
+		++optind;
+		}
+	if(templateFile==null)
+		{
+		System.err.println("Undefined template.");
+		System.exit(-1);
+		}
+	JenaGenerator app=new JenaGenerator(System.in);
+	app.input();
+	Properties props = new Properties();
+	props.put(Velocity.RESOURCE_LOADER, "file");
+	if(templateFile.getParent()!=null)
+		{
+		props.put("file.resource.loader.path",templateFile.getParent());
+		}
+	
+	VelocityEngine ve = new VelocityEngine();
+	ve.init(props);
+
+	VelocityContext ctx=new VelocityContext();
+	ctx.put("now",new java.sql.Timestamp(System.currentTimeMillis()));
+	ctx.put("classes",app.structures);
+	
+	Template template= ve.getTemplate(templateFile.getName());
+	
+	PrintWriter out=new PrintWriter(System.out);
+	template.merge(ctx, out);
+
+	out.flush();
+	out.close();
+	}
+
+}
+
+PARSER_END(JenaGenerator)
+
+SKIP :
+{
+" "
+| "\t"
+| "\n"
+| "\r"
+| <"//" (~["\n"])* "\n">
+| <"/*">: INSIDE_COMMENT
+}
+
+<INSIDE_COMMENT>
+SKIP:
+{
+        <"*/">: DEFAULT
+|       <~[]>
+}
+
+
+TOKEN : /* LITERALS */
+{
+  <CLASS: "class">
+| <INTERFACE: "interface">
+| <URI_ANNOTATION: ("@URI"|"@Uri")>
+| <ME_SUBJECT_ANNOTATION: "@MeSubject">
+| <ME_OBJECT_ANNOTATION: "@MeObject">
+| <UNIQUE_ANNOTATION: "@Unique">
+| <INDEXED_ANNOTATION: "@Indexed">
+| <TYPED_ANNOTATION: "@Typed">
+| <#JAVA_LANG: "java.lang.">
+| <#JAVA_UTIL: "java.util.">
+| <PUBLIC: "public">
+| <PRIVATE: "private">
+| <PROTECTED: "protected">
+| <BOOLEAN: "boolean">
+| <CHAR: "char">
+| <BYTE: "byte">
+| <DOUBLE: "double">
+| <FLOAT: "float">
+| <INT: "int">
+| <LONG: "long">
+| <SHORT: "short">
+| <CBOOLEAN: (<JAVA_LANG>)? "Boolean">
+| <CCHAR: (<JAVA_LANG>)? "Character">
+| <CBYTE: (<JAVA_LANG>)? "Byte">
+| <CDOUBLE: (<JAVA_LANG>)? "Double">
+| <CFLOAT: (<JAVA_LANG>)? "Float">
+| <CINT: (<JAVA_LANG>)? "Integer">
+| <CLONG: (<JAVA_LANG>)? "Long">
+| <CSHORT: (<JAVA_LANG>)? "Short">
+| <STRING: (<JAVA_LANG>)? "String">
+| <LIST: (<JAVA_UTIL>)? "List">
+| <LBRACKET: "{" >
+| <RBRACKET: "}" >
+| <LPAR: "(" >
+| <RPAR: ")" >
+| <LT: "<" >
+| <GT: ">" >
+| <SEMICOLON: ";" >
+| <COMMA: "," >
+| <#LETTER: ["_","a"-"z","A"-"Z"] >
+| <#DIGIT: ["0"-"9"] >
+| <DOUBLE_QUOTE_LITERAL: "\"" (~["\""])*"\"" >
+| <IDENTIFIER: <LETTER> (<LETTER>|<DIGIT>)* >
+}
+
+
+private void input():{List<OntClass> L=new ArrayList<OntClass>(); OntClass c;}
+    {
+    (c=classDecl() {this.structures.add(c);} )+ <EOF>
+    	{
+
+    	}
+    }
+
+private OntClass classDecl():
+    {OntClass c=new OntClass();
+    OntMethod meth=null;
+    }
+    {
+    (
+    classAnnotations(c)
+    (<PUBLIC>)? (<CLASS>|<INTERFACE>) c.name=identifier()
+    <LBRACKET>
+    (meth=method(){meth.owner=c; c.methods.add(meth);})+
+    <RBRACKET>
+    ) 	{
+    	if(c.rdfType==null) throw new ParseException("rdf:type undefined for "+c);
+    	return c;
+    	}
+    }
+
+
+private OntMethod method():
+	{
+	OntMethod m=new OntMethod();
+	}
+	{
+	methodAnnotations(m)
+	(<PUBLIC>)? m.dataType=dataType() m.name=identifier() <LPAR> <RPAR> <SEMICOLON>
+		{
+		if(m.name.startsWith("is"))
+			{
+			m.name=m.name.substring(2);
+			}
+		else if(m.name.startsWith("get"))
+			{
+			m.name=m.name.substring(3);
+			}
+		else
+			{
+			throw new ParseException("should start with 'is' or 'get' = bad getter "+m.name);
+			}
+		if(m.rdfType==null) throw new ParseException("rdf:type undefined for "+m);
+		return m;
+		}
+	}
+
+
+private OntType dataType(): {OntType t;}
+	{
+	(t=anyPrimitiveType()|t=userDataType()|t=listType())
+		{
+		return t;
+		}
+	}
+
+private OntListType listType():{OntListType t=new OntListType();}
+	{
+	<LIST> <LT> ( t.elementType=anyPrimitiveType() | t.elementType=userDataType() ) <GT>
+		{
+		return t;
+		}
+	}
+
+private OntPrimitiveType anyPrimitiveType():{OntPrimitiveType t=null;}
+	{
+	(t=primitiveType()|t=boxedPrimitiveType())
+		{
+		return t;
+		}
+	}
+
+private OntPrimitiveType primitiveType(): {Token k;OntPrimitiveType t=null;}
+ 	{
+ 	(
+ 		k=<BOOLEAN> { t=new OntPrimitiveType(k.image,Boolean.class,false);}
+	| 	k=<CHAR> { t=new OntPrimitiveType(k.image,Character.class,false);}
+	| 	k=<BYTE> { t=new OntPrimitiveType(k.image,Byte.class,false);}
+	| 	k=<SHORT> { t=new OntPrimitiveType(k.image,Short.class,false);}
+	| 	k=<INT> { t=new OntPrimitiveType(k.image,Integer.class,false);}
+	| 	k=<LONG> { t=new OntPrimitiveType(k.image,Long.class,false);}
+	| 	k=<FLOAT> { t=new OntPrimitiveType(k.image,Float.class,false);}
+	| 	k=<DOUBLE> { t=new OntPrimitiveType(k.image,Double.class,false);}
+	) { return t;}
+	}
+
+private OntPrimitiveType boxedPrimitiveType(): {Token k;OntPrimitiveType t=null;}
+ 	{
+ 	(
+ 		k=<CBOOLEAN> { t=new OntPrimitiveType(k.image,Boolean.class,true);}
+	| 	k=<CCHAR> { t=new OntPrimitiveType(k.image,Character.class,true);}
+	| 	k=<CBYTE>{ t=new OntPrimitiveType(k.image,Byte.class,true);}
+	| 	k=<CSHORT>{ t=new OntPrimitiveType(k.image,Short.class,true);}
+	| 	k=<CINT>{ t=new OntPrimitiveType(k.image,Integer.class,true);}
+	| 	k=<CLONG>{ t=new OntPrimitiveType(k.image,Long.class,true);}
+	| 	k=<CFLOAT>{ t=new OntPrimitiveType(k.image,Float.class,true);}
+	| 	k=<CDOUBLE>{ t=new OntPrimitiveType(k.image,Double.class,true);}
+	| 	k=<STRING>{ t=new OntPrimitiveType(k.image,String.class,true);}
+	) { return t;}
+	}
+
+
+private OntUserType userDataType(): {OntUserType t=new OntUserType();}
+	{
+	(t.name=identifier())
+		{
+		return t;
+		}
+	}
+
+private void classAnnotations(OntClass node):{Token t;}
+	{
+	<URI_ANNOTATION> <LPAR> t=<DOUBLE_QUOTE_LITERAL> <RPAR>
+		{
+		node.rdfType=t.image;
+		}
+	
+	}
+
+private void methodAnnotations(OntMethod node):{Token t;}
+	{
+	(
+	  (<ME_SUBJECT_ANNOTATION> <LPAR> t=<DOUBLE_QUOTE_LITERAL> <RPAR>) {node.rdfType=t.image;node.subject=true;}
+	| (<URI_ANNOTATION> <LPAR> t=<DOUBLE_QUOTE_LITERAL> <RPAR>) {node.rdfType=t.image;node.subject=true;}
+	| (<ME_OBJECT_ANNOTATION> <LPAR> t=<DOUBLE_QUOTE_LITERAL> <RPAR>) {node.rdfType=t.image;node.subject=false;}
+	| <UNIQUE_ANNOTATION>  {node.unique=true;}
+	| <INDEXED_ANNOTATION>  {node.indexed=true;}
+	| <TYPED_ANNOTATION> { node.typed=true;}
+	)+
+	}
+
+
+
+private String identifier():
+    {
+    Token t;
+    }
+    {
+    t=<IDENTIFIER> { return t.image;}
+    }
+
