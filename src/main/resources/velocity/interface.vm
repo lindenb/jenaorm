@@ -1,0 +1,4 @@
+#parse("/velocity/common.vm")
+
+
+Hello I'm ${ontClass.name}

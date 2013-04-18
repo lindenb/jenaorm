@@ -1,3 +1,4 @@
+#parse("/velocity/common.vm")
 #macro(CLASSTYPE $c)${c.name.toUpperCase()}_RDF_TYPE#end
 #macro(METHODTYPE $m)${m.owner.name.toUpperCase()}_${m.name.toUpperCase()}_PROPERTY_TYPE#end
 #macro(PRIMITIVE_IN_JENA $type)#if($type=="Integer")Int#elseif($type=="Character")Char#{else}${type}#end#end
@@ -6,8 +7,7 @@
 import com.hp.hpl.jena.rdf.model.*;
 import com.hp.hpl.jena.util.iterator.*;
 import java.util.*;
-#set($mainClass="jeter")
-#set($primitiveTypes=["Boolean","Byte","Short","Integer","Long","String","Float","Double","Character"])
+
 
 /**
  *  ${mainClass}
