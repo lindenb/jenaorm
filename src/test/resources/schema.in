@@ -1,0 +1,16 @@
+@URI("http://schema.org/Person")
+public interface Person
+	{
+
+	@MeSubject("http://xmlns.com/foaf/0.1/name")
+	@Indexed
+	public String getName();
+	
+	@MeSubject("http://dbpedia.org/ontology/deathPlace")
+	public String getDeathPlace();
+	
+	@MeSubject("http://dbpedia.org/ontology/birthPlace")
+	public String getBirthPlace();
+	}
+
+

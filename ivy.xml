@@ -4,6 +4,8 @@ xsi:noNamespaceSchemaLocation="http://ant.apache.org/ivy/schemas/ivy.xsd">
 
     <info organisation="lindenb" module="main"/>
     <dependencies defaultconf="default">
+    	<dependency org="org.apache.jena" name="jena-core" rev="2.7.3" />
         <dependency org="org.apache.velocity" name="velocity"  rev="1.7" />
+
     </dependencies>
 </ivy-module>

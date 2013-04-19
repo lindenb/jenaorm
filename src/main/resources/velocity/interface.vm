@@ -1,4 +1,28 @@
 #parse("/velocity/common.vm")
+#if(${package})package ${package};#end
+
+/**
+ * 
+ * ${ontClass.name}
+ * This is the interface wrapping the RDF resource having a rd:type "${ontClass.rdfType}"
+ *
+ */
+@javax.annotation.Generated("${mainClass}")
+public interface ${ontClass.name}
+	extends ${mainClass}.JenaORMRecord
+	{
+	#foreach($m in ${ontClass.methods})
+	
+	/**
+	 * get the property ${m.name} 
+	 * @return the property in the range of "${m.rdfType}"
+	 */
+	public ${m.dataType.decl} ${m.getter}();
+	
+	#end
+	
+	
+	
+	}
 
 
-Hello I'm ${ontClass.name}

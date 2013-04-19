@@ -216,22 +216,49 @@ private OntClass findOntClassByName(String name)
 	System.err.println("Cannot find class "+name);
 	return null;
 	}
+
+private String mainClass=null;
+private String destPackage=null;
+private File destDir=null;
+
 public static void main(String args[]) throws Exception
 	{
+	String mainClass="GeneratedORM";
+	File destDir=null;
+	String destPackage="generated";
 	int optind=0;
-	File templateFile=null;
 	while(optind< args.length)
 		{
 		if(args[optind].equals("-h"))
 			{
-			
+			System.out.println("Options:");
+			System.out.println("-C (main-class)");
+			System.out.println("-p (package)");
+			System.out.println("-D (dest. directory)");
 			return;
 			}
-		else if(args[optind].equals("-T") && optind+1< args.length)
+		else if(args[optind].equals("-C") && optind+1< args.length)
 			{
-			templateFile=new File(args[++optind]);
+			mainClass = args[++optind];
+			if(!mainClass.matches("[A-Z][a-z0-9]+"))
+				{
+				System.err.println("Bad name for main class "+mainClass);
+				System.exit(-1);
+				}
 			}
-		
+		else if(args[optind].equals("-D") && optind+1< args.length)
+			{
+			destDir = new File(args[++optind]);
+			}
+		else if(args[optind].equals("-p") && optind+1< args.length)
+			{
+			destPackage = args[++optind];
+			if(!destPackage.matches("[a-zA-Z_][A-Z_a-z0-9]+(\\.[a-zA-Z_][A-Z_a-z0-9]+)*"))
+				{
+				System.err.println("Bad name for package "+destPackage);
+				System.exit(-1);
+				}
+			}
 		else if(args[optind].equals("--"))
 			{
 			++optind;
@@ -248,36 +275,92 @@ public static void main(String args[]) throws Exception
 			}
 		++optind;
 		}
-	if(templateFile==null)
+	FileInputStream fin=null;
+	JenaGenerator app=null;
+	if(optind==args.length)
 		{
-		System.err.println("Undefined template.");
+		app=new JenaGenerator(System.in);
+		}
+	else if(optind+1==args.length)
+		{
+		fin=new FileInputStream(args[optind++]);
+		app=new JenaGenerator(fin);
+		}
+	else
+		{
+		System.err.println("illegal number of args");
 		System.exit(-1);
 		}
-	JenaGenerator app=new JenaGenerator(System.in);
+	
+	app.mainClass=mainClass;
+	app.destDir=destDir;
+	app.destPackage=destPackage;
 	app.input();
-	Properties props = new Properties();
-	props.put(Velocity.RESOURCE_LOADER, "file");
-	if(templateFile.getParent()!=null)
+	
+	if(fin!=null) fin.close();
+	if(app.structures.isEmpty())
 		{
-		props.put("file.resource.loader.path",templateFile.getParent());
+		System.err.println("empty input");
+		System.exit(-1);
 		}
+	app.generateCode();	
+	}
+	
+private void generateCode() throws Exception
+	{
+	if(destDir!=null && !destDir.exists())
+		{
+		throw new IOException("output directory doesn't exists");
+		}
+	
+	Properties props = new Properties();
+	props.put(Velocity.RESOURCE_LOADER, "class");
+	props.put("class.resource.loader.class",
+		"org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader"
+		);
+		
 	
 	VelocityEngine ve = new VelocityEngine();
 	ve.init(props);
-
+	
 	VelocityContext ctx=new VelocityContext();
+		
 	ctx.put("now",new java.sql.Timestamp(System.currentTimeMillis()));
-	ctx.put("classes",app.structures);
+	ctx.put("classes",this.structures);
+	ctx.put("mainClass",this.mainClass);
+	if(destPackage!=null) ctx.put("package",this.destPackage);
+		
+	Template template= ve.getTemplate("/velocity/model.vm");
+	generateCode(ve,ctx,template,mainClass+".java");
 	
-	Template template= ve.getTemplate(templateFile.getName());
+	template= ve.getTemplate("/velocity/factory.vm");
+	generateCode(ve,ctx,template,mainClass+"Factory.java");
 	
-	PrintWriter out=new PrintWriter(System.out);
+	
+	template= ve.getTemplate("/velocity/interface.vm");
+	for(OntClass C:  this.structures)
+		{
+		ctx.put("ontClass",C);
+		generateCode(ve,ctx,template,C.getJavaName()+".java");
+		}
+	
+	}
+private void generateCode(
+	VelocityEngine ve,
+	VelocityContext ctx,
+	Template template,
+	String baseFile
+	) throws Exception
+	{
+	File dir=new File(this.destDir,this.destPackage.replace(".",File.pathSeparator));
+	dir.mkdirs();
+	File fout=new File(dir,baseFile);
+	System.out.println("[Creating]"+fout);
+	PrintWriter out=new PrintWriter(fout);
 	template.merge(ctx, out);
-
 	out.flush();
 	out.close();
 	}
-
 }
 
 PARSER_END(JenaGenerator)

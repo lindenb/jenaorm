@@ -1,0 +1,1008 @@
+#parse("/velocity/common.vm")
+#macro(CLASSTYPE $c)${c.name.toUpperCase()}_RDF_TYPE#end
+#macro(METHODTYPE $m)${m.owner.name.toUpperCase()}_${m.name.toUpperCase()}_PROPERTY_TYPE#end
+#macro(PRIMITIVE_IN_JENA $type)#if($type=="Integer")Int#elseif($type=="Character")Char#{else}${type}#end#end
+#macro(PRIMITIVE_NON_NULL $type)#if($type=="Integer")int#elseif($type=="Character")char#{else}${type.toLowerCase()}#end#end
+#macro(PRIMITIVE_FACTORY $type)${type.toUpperCase()}_PRIMITIVE_FACTORY#end
+#macro(IMPLEMENTATION $name)${name}Impl#end
+#if(${package})package ${package};#end
+
+import com.hp.hpl.jena.rdf.model.*;
+import com.hp.hpl.jena.util.iterator.*;
+import java.util.*;
+
+
+/**
+ *  ${mainClass}
+ *
+ */
+@javax.annotation.Generated("${mainClass}")
+public class ${mainClass}
+{
+#foreach($c in ${classes})
+
+/**
+ * the property for the class ${c.javaName}.
+ */
+private static final Resource #CLASSTYPE($c)=ResourceFactory.createResource(${c.rdfType});
+
+#foreach($m in ${c.methods})
+
+/**
+ * the rdf:type for the property ${c.javaName}.${m.name}().
+ */
+
+private static final Property #METHODTYPE($m)=ResourceFactory.createProperty(${m.rdfType});
+#end
+
+#end
+
+/** RDF datastore */
+private Model _model=null;
+
+
+/**
+ * Constructor
+ */
+public ${mainClass}(Model model)
+	{
+	this._model=model;
+	}
+
+
+/** 
+ * creates an object wrapping the given resource
+ */
+protected interface InstanceFactory<T>
+	{
+	public T createObjectFromResource(com.hp.hpl.jena.rdf.model.Resource rsrc);
+	}
+
+/** 
+ * creates an object from a Literal
+ */
+protected interface PrimitiveFactory<T>
+	{
+	public T createDataFromLiteral(com.hp.hpl.jena.rdf.model.Literal L);
+	}
+
+
+#foreach($type in $primitiveTypes)
+
+/** PrimitiveFactory for $type */ 
+private static final PrimitiveFactory<${type}> #PRIMITIVE_FACTORY($type) = new PrimitiveFactory<${type}>()
+	{
+	@Override
+	public ${type} createDataFromLiteral(com.hp.hpl.jena.rdf.model.Literal L)
+		{
+		try
+			{
+			return L.get#PRIMITIVE_IN_JENA($type)();
+			}
+		catch(Exception err)
+			{
+			return null;
+			}
+		}
+	};
+
+#end
+
+protected <T> List<T> listMeSubject(
+		Resource pivot,
+		Property predicate,
+		Resource T_type,
+		InstanceFactory<T> createInstance
+		)
+	{
+	return new MeSubjectList<T>(pivot,predicate,T_type,createInstance);
+	}
+
+protected <T> List<T> listMeObject(
+		Resource pivot,
+		Property predicate,
+		Resource T_type,
+		InstanceFactory<T> createInstance
+		)
+	{
+	return new MeObjectList<T>(pivot,predicate,T_type,createInstance);
+	}
+	
+protected <T> T getMeObject(
+		Resource subject,
+		Property predicate,
+		Resource T_type,
+		InstanceFactory<T> createInstance
+		)
+	{
+	StmtIterator iter=null;
+	try
+		{
+		iter=this.getModel().listStatements(
+			null,
+			predicate,
+			subject
+			);
+		
+		while(iter.hasNext())
+			{
+			Statement stmt=iter.nextStatement();
+			Resource S=stmt.getSubject();
+			if(!S.hasProperty(com.hp.hpl.jena.vocabulary.RDF.type,T_type)) continue;
+			return createInstance.createObjectFromResource(S);
+			}
+		return null;
+		}
+	finally
+		{
+		if(iter!=null) iter.close();
+		}
+	}
+
+protected <T> T getMeSubject(
+		Resource subject,
+		Property predicate,
+		Resource T_type,
+		InstanceFactory<T> createInstance
+		)
+	{
+	StmtIterator iter=null;
+	try
+		{
+		iter=this.getModel().listStatements(
+			subject,
+			predicate,
+			(Resource)null
+			);
+		
+		while(iter.hasNext())
+			{
+			Statement stmt=iter.nextStatement();
+			RDFNode o=stmt.getObject();
+			if(!o.isResource()) continue;
+			Resource S=o.asResource();
+			if(!S.hasProperty(com.hp.hpl.jena.vocabulary.RDF.type,T_type)) continue;
+			return createInstance.createObjectFromResource(S);
+			}
+		return null;
+		}
+	finally
+		{
+		if(iter!=null) iter.close();
+		}
+	}
+
+
+
+protected <T> T findResourceByURI(
+	String uri,
+	Resource rdfType,
+	InstanceFactory<T> createInstance
+	)
+	{
+	StmtIterator iter=null;
+	try
+		{
+		iter=this.getModel().listStatements(
+			ResourceFactory.createResource(uri),
+			com.hp.hpl.jena.vocabulary.RDF.type,
+			rdfType
+			);
+		while(iter.hasNext())
+			{
+			Statement stmt=iter.nextStatement();
+			return createInstance.createObjectFromResource(stmt.getSubject());
+			}
+		return null;
+		}
+	finally
+		{
+		if(iter!=null) iter.close();
+		}
+	}
+
+protected <T> T findByLiteral(
+	final Resource rdfType,
+	final Property predicate,
+	final Literal literal,
+	InstanceFactory<T> instanceFactory
+	)
+	{
+	StmtIterator iter=null;
+	try
+		{
+		iter=this.getModel().listStatements(
+			null,
+			predicate,
+			literal
+			);
+		while(iter.hasNext())
+			{
+			Statement stmt=iter.nextStatement();
+			Resource S=stmt.getSubject();
+			if(!S.hasProperty(com.hp.hpl.jena.vocabulary.RDF.type,rdfType)) continue;
+			return instanceFactory.createObjectFromResource(S);
+			}
+		return null;
+		}
+	finally
+		{
+		if(iter!=null) iter.close();
+		}
+	}
+
+
+protected <T> List<T> findAllByLiteral(
+	final Resource rdfType,
+	final Property predicate,
+	final Literal literal,
+	InstanceFactory<T> instanceFactory
+	)
+	{
+	return new FindAllByLiteral<T>(rdfType,predicate,literal,instanceFactory);
+	}
+
+public static interface JenaORMRecord
+	{
+	/** return the ${mainClass} container */
+	public ${mainClass} get${mainClass}();
+	
+ 	#foreach($c in ${classes})
+	 
+	 /** @return this object as ${c.javaName} if it contains rdf:type=${c.rdfType} or null if
+	   * the property is not present
+	   */
+	 public ${c.javaName} getAs${c.javaName}();
+	 
+	 /** @return true if the objet contains the property rdf:type=${c.rdfType} */
+	 public boolean isA${c.javaName}();
+	 
+	 #end
+	}
+
+public abstract class AbstractRecord
+	implements JenaORMRecord
+	 {
+	 private com.hp.hpl.jena.rdf.model.Resource privRsrc;
+	 protected AbstractRecord(com.hp.hpl.jena.rdf.model.Resource rsrc)
+		{
+		this.privRsrc=rsrc;
+		}
+	 
+	 protected abstract com.hp.hpl.jena.rdf.model.Resource rdfType();
+	 
+	 
+	 /** return the ${mainClass} container */
+	 @Override
+	 public ${mainClass} get${mainClass}()
+	 	{
+	 	return this.owner();
+	 	}
+	 
+	 protected final ${mainClass} owner()
+	 	{
+	 	return ${mainClass}.this;
+	 	}
+	 
+	 protected com.hp.hpl.jena.rdf.model.Resource rsrc()
+	 	{
+	 	return this.privRsrc;
+	 	}
+	 	
+	  protected Literal findLiteral(final Property predicate)
+	 	{
+	 	StmtIterator iter=null;
+	 	try	{
+	 		iter=rsrc().listProperties(predicate);
+	 		while(iter.hasNext())
+	 			{
+	 			Statement stmt=iter.nextStatement();
+	 			RDFNode o=stmt.getObject();
+	 			if(!o.isLiteral()) continue;
+	 			return o.asLiteral();
+	 			}
+	 		return null;
+	 		}
+	 	finally
+	 		{
+	 		if(iter!=null) iter.close();
+	 		}
+	 	
+	 	}
+	 
+	 #foreach($type in $primitiveTypes)
+	 
+	 protected ${type} property#PRIMITIVE_IN_JENA($type)Nillable(final Property p)
+	 	{
+	 	Literal L=findLiteral(p);
+	 	return (L==null?null:L.get#PRIMITIVE_IN_JENA($type)());
+	 	}
+	 	
+	 #if($type!="String")
+	 
+	 protected #PRIMITIVE_NON_NULL($type) property#PRIMITIVE_IN_JENA($type)(final Property p)
+	 	{
+	 	${type} v=property#PRIMITIVE_IN_JENA($type)Nillable(p);
+	 	if(v==null) throw new IllegalStateException("property "+p+" missing for "+rsrc());
+	 	return  v;
+	 	}
+	 #else
+	 protected $type property#PRIMITIVE_IN_JENA($type)(final Property p)
+	 	{
+	 	return property#PRIMITIVE_IN_JENA($type)Nillable(p);
+	 	}
+	 #end
+	 #end
+	 
+	 
+	 private boolean _isA(final Resource type)
+	 	{
+	 	return this.rdfType().equals(type)  || rsrc().hasProperty(com.hp.hpl.jena.vocabulary.RDF.type,type);
+	 	}
+	 
+	 #foreach($c in ${classes})
+	 
+	 /** @return this object as ${c.javaName} if it contains rdf:type=${c.rdfType} or null if
+	   * the property is not present
+	   */
+	 @Override
+	 public ${c.javaName} getAs${c.javaName}()
+	 	{
+	 	if(!_isA( ${mainClass}.#CLASSTYPE($c) )) return null;
+	 	return  getInstanceFactoryFor${c.javaName}().createObjectFromResource(rsrc());
+	 	}
+	 
+	 /** @return true if the objet contains the property rdf:type=${c.rdfType} */
+	 @Override
+	 public boolean isA${c.javaName}()
+	 	{
+	 	return _isA(${mainClass}.#CLASSTYPE($c) );
+	 	}
+	 
+	 #end
+	 
+	 
+	 @Override
+	 public String toString()
+	 	{
+	 	return rsrc().toString();
+	 	}
+	 }
+
+/** @return the underlying JENA RDF datastore */
+Model getModel()
+	{
+	return this._model;
+	}
+	
+/** find InstanceFactory by rdf:type or returns null */
+protected InstanceFactory<? extends JenaORMRecord> getInstanceFactoryByRdfType(final Resource rdfType)
+	{
+	#foreach($c in ${classes})
+	
+	if(  ${mainClass}.#CLASSTYPE($c).equals(rdfType)) return getInstanceFactoryFor${c.javaName}();
+	
+	#end
+	return null;
+	}	
+	
+
+public JenaORMRecord findByUri(String uri)
+	{
+	StmtIterator iter=null;
+	try
+		{
+		iter=this.getModel().listStatements(
+			ResourceFactory.createResource(uri),
+			com.hp.hpl.jena.vocabulary.RDF.type,
+			(Resource)null
+			);
+		while(iter.hasNext())
+			{
+			Statement stmt=iter.nextStatement();
+			if(!stmt.getObject().isResource()) continue;
+			InstanceFactory<? extends JenaORMRecord> factory=getInstanceFactoryByRdfType(stmt.getObject().asResource());
+			if(factory==null) continue;
+			return factory.createObjectFromResource(stmt.getSubject());
+			}
+		return null;
+		}
+	finally
+		{
+		if(iter!=null) iter.close();
+		}
+	}
+
+#foreach($c in ${classes})
+
+
+
+/**
+ * class definition for ${c.javaName}
+ * having rdf:type= ${c.rdfType}
+ */ 
+public class #IMPLEMENTATION(${c.javaName}) extends AbstractRecord
+	implements ${c.javaName}
+	{
+	public #IMPLEMENTATION(${c.javaName})(com.hp.hpl.jena.rdf.model.Resource rsrc)
+		{
+		super(rsrc);
+		}
+	
+	@Override
+	protected com.hp.hpl.jena.rdf.model.Resource rdfType()
+		{
+		return #CLASSTYPE($c);
+		}
+	
+	#foreach($m in ${c.methods})
+	
+	@Override
+	public ${m.dataType.decl} ${m.getter}()
+		{
+		#if( $m.dataType.isList() && $m.dataType.elementType.userType)
+		
+		return owner().#if($m.subject)listMeSubject#{else}listMeObject#end(
+			this.rsrc(),
+			${mainClass}.#METHODTYPE($m),
+			${mainClass}.#CLASSTYPE($m.dataType.elementType.userClass),
+			owner().getInstanceFactoryFor${m.dataType.elementType.userClass.javaName}()
+			);
+		
+		#elseif( $m.dataType.isList())
+		#set($returnType="${m.dataType.elementType.className}")
+		
+		return new DataList<$returnType>(
+			this.rsrc(),
+			${mainClass}.#METHODTYPE($m),
+			#PRIMITIVE_FACTORY($returnType)
+			);
+			
+		#elseif( $m.dataType.userType)
+		
+		return owner().#if($m.subject)getMeSubject#{else}getMeObject#end(
+			this.rsrc(),
+			${mainClass}.#METHODTYPE($m),
+			${mainClass}.#CLASSTYPE($m.dataType.userClass),
+			owner().getInstanceFactoryFor${m.dataType.userClass.javaName}()
+			);
+		
+		#else
+		#set($returnType="${m.dataType.className}")
+		
+		return this.property#PRIMITIVE_IN_JENA($returnType)#if(${m.dataType.nillable})Nillable#end(${mainClass}.#METHODTYPE($m));
+			
+		#end
+		
+		}
+	#end
+	
+	}
+
+
+#end
+
+
+#foreach($c in ${classes})
+#set($instance_factory_name="DEFAULT_"+${c.name.toUpperCase()}+"_INSTANCE_FACTORY")
+/**
+ * default InstanceFactory for the class ${c.javaName}
+ */
+private final  InstanceFactory<${c.javaName}> $instance_factory_name =  new InstanceFactory<${c.javaName}>()
+	{
+	@Override
+	public ${c.javaName} createObjectFromResource(com.hp.hpl.jena.rdf.model.Resource rsrc)
+		{
+		return ${mainClass}.this.new${c.javaName}(rsrc);
+		}
+	};
+
+/**
+ * @return an InstanceFactory for the class ${c.javaName}
+ */
+protected InstanceFactory<${c.javaName}> getInstanceFactoryFor${c.javaName}()
+	{
+	return $instance_factory_name ;
+	}
+
+protected ${c.javaName} new${c.javaName}(com.hp.hpl.jena.rdf.model.Resource rsrc)
+	{
+	return new #IMPLEMENTATION(${c.javaName})(rsrc);
+	}
+
+public ${c.javaName} find${c.javaName}ByURI(String uri)
+	{
+	return findResourceByURI( uri,#CLASSTYPE($c),getInstanceFactoryFor${c.javaName}() );
+	}
+
+/** returns all the instances of ${c.javaName} */
+public List<${c.javaName}> getAll${c.javaName}()
+	{
+	return new ListAll<${c.javaName}>(
+		#CLASSTYPE($c),
+		getInstanceFactoryFor${c.javaName}()
+		);
+	}
+	
+#foreach($m in ${c.methods})
+#if(!$m.list && $m.subject && !$m.dataType.userType && $m.unique)
+#set($varParam= ${m.javaName.toLowerCase()})
+
+/** returns a ${c.javaName} from it property ${m.name} */
+public ${c.javaName} get${c.javaName}By${m.javaName}(final ${m.dataType.className} $varParam)
+	{
+	return this.findByLiteral(
+		#CLASSTYPE($c),
+		${mainClass}.#METHODTYPE($m),
+		getModel().create#if(${m.typed})Typed#{end}Literal(#if(${m.typed})${varParam}#{else}String.valueOf($varParam)#end),
+		getInstanceFactoryFor${c.javaName}()
+		);
+	}
+
+
+#end
+
+#if(!$m.list && $m.subject && !$m.dataType.userType && !$m.unique && $m.indexed)
+#set($varParam= ${m.javaName.toLowerCase()})
+
+/** returns a list of ${c.javaName} from it property ${m.name} */
+public List<${c.javaName}> get${c.javaName}By${m.javaName}(final ${m.dataType.className} $varParam)
+	{
+	return this.findAllByLiteral(
+		#CLASSTYPE($c),
+		${mainClass}.#METHODTYPE($m),
+		getModel().create#if(${m.typed})Typed#{end}Literal(#if(${m.typed})${varParam}#{else}String.valueOf($varParam)#end),
+		getInstanceFactoryFor${c.javaName}()
+		);
+	}
+
+
+#end
+
+
+
+#end	
+
+
+#end
+
+
+protected abstract class IteratorList<T> extends AbstractList<T>
+	{
+	private Integer _size=null;
+	@Override
+	public T get(int i)
+		{
+		ExtendedIterator<T> iter=null;
+		try
+			{
+			int index=0;
+			iter=iterator();
+			while(iter.hasNext())
+				{
+				T o=iter.next();
+				if(index==i) return o;
+				index++;
+				}
+			}
+		finally
+			{
+			if(iter!=null) iter.close();
+			}
+		throw new IllegalStateException();
+		}
+	@Override
+	public boolean isEmpty()
+		{
+		ExtendedIterator<T> iter=null;
+		try
+			{
+			iter=iterator();
+			return !iter.hasNext();
+			}
+		finally
+			{
+			if(iter!=null) iter.close();
+			}
+		}
+	
+	@Override
+	public int size()
+		{
+		if(_size==null)
+			{
+			int N=0;
+			ExtendedIterator<T> iter=null;
+			try
+				{
+				iter=iterator();
+				while(iter.hasNext())
+					{
+					iter.next();
+					N++;
+					}
+				_size=N;
+				}
+			finally
+				{
+				if(iter!=null) iter.close();
+				}
+			}
+		return _size;
+		}
+	
+	@Override
+	public abstract ExtendedIterator<T> iterator();
+	}
+
+
+protected abstract class StatementList<T> extends IteratorList<T>
+	{
+	Resource pivot;
+	Property predicate;
+	StatementList(
+		Resource pivot,
+		Property predicate
+		)
+		{
+		this.pivot=pivot;
+		this.predicate=predicate;
+		}
+
+	abstract class StatementListIterator extends NiceIterator<T>
+		{
+		StmtIterator iter;
+		StatementListIterator(StmtIterator iter)
+			{
+			this.iter=iter;
+			}
+
+		@Override
+		public boolean hasNext()
+			{
+			if(this.iter==null) return false;
+			boolean b=this.iter.hasNext();
+			if(!b) { close();}
+			return b;
+			}
+		@Override
+		public abstract T next();
+		
+		@Override
+		public void close()
+			{
+			if(this.iter!=null)
+				{
+				iter.close();
+				iter=null;
+				}
+			super.close();
+			}
+		}
+
+	}
+
+
+protected class FindAllByLiteral<T> extends StatementList<T>
+	{
+	Resource T_type;
+	InstanceFactory<T> instanceFactory;
+	Literal literal;
+	
+	FindAllByLiteral(
+		Resource rdfType,
+		Property predicate,
+		Literal literal,
+		InstanceFactory<T> instanceFactory
+		)
+		{
+		super(rdfType,predicate);
+		this.literal=literal;
+		this.instanceFactory=instanceFactory;
+		}
+		
+	@Override
+	public ExtendedIterator<T> iterator()
+		{
+		return new InstanceIterator(createStmtIterator());
+		}
+	
+	protected StmtIterator createStmtIterator()
+		{
+		StmtIterator iter=${mainClass}.this.getModel().listStatements(
+				null,
+				super.predicate,
+				this.literal
+				);
+		iter.filterKeep(new Filter<Statement>()
+			{
+			@Override
+			public boolean accept(Statement candidate)
+			 	{
+			 	Resource S=candidate.getSubject();
+			 	if(!S.hasProperty(com.hp.hpl.jena.vocabulary.RDF.type,pivot)) return false;
+			 	return true;
+			 	}
+			});
+		return iter;
+		}
+	
+
+	
+	class InstanceIterator extends StatementListIterator
+		{
+		InstanceIterator(StmtIterator iter)
+			{
+			super(iter);
+			}
+
+		
+		@Override
+		public T next()
+			{
+			return  instanceFactory.createObjectFromResource(iter.nextStatement().getSubject());
+			}
+		
+		}
+	}
+
+protected class DataList<T> extends StatementList<T>
+	{
+	PrimitiveFactory<T> primitiveFactory;
+	DataList(
+		Resource pivot,
+		Property predicate,
+		PrimitiveFactory<T> primitiveFactory
+		)
+		{
+		super(pivot,predicate);
+		this.primitiveFactory=primitiveFactory;
+		}
+		
+	@Override
+	public ExtendedIterator<T> iterator()
+		{
+		return new PrimitiveIterator(createStmtIterator());
+		}
+	
+	protected StmtIterator createStmtIterator()
+		{
+		StmtIterator iter=${mainClass}.this.getModel().listStatements(
+				super.pivot,
+				super.predicate,
+				(RDFNode)null
+				);
+		iter.filterKeep(new Filter<Statement>()
+			{
+			@Override
+			public boolean accept(Statement candidate)
+			 	{
+			 	RDFNode o=candidate.getObject();
+			 	if(!o.isLiteral()) return false;
+			 	if( primitiveFactory.createDataFromLiteral(o.asLiteral())==null) return false;
+			 	return true;
+			 	}
+			});
+		return iter;
+		}
+	
+
+	
+	class PrimitiveIterator extends StatementListIterator
+		{
+		PrimitiveIterator(StmtIterator iter)
+			{
+			super(iter);
+			}
+
+		
+		@Override
+		public T next()
+			{
+			return  primitiveFactory.createDataFromLiteral(iter.nextStatement().getObject().asLiteral());
+			}
+		
+		}
+	}
+
+protected abstract class ResourceList<T> extends StatementList<T>
+	{
+	Resource T_type;
+	InstanceFactory<T> instanceFactory;
+	
+	ResourceList(
+		Resource pivot,
+		Property predicate,
+		Resource T_type,
+		InstanceFactory<T> instanceFactory
+		)
+		{
+		super(pivot,predicate);
+		this.T_type=T_type;
+		this.instanceFactory=instanceFactory;
+		}
+	
+	@Override
+	public ExtendedIterator<T> iterator()
+		{
+		return new MyIterator(createStmtIterator());
+		}
+	
+	protected abstract StmtIterator createStmtIterator();
+	protected abstract Resource extactResource(Statement stmt);
+	
+
+	protected T createInstance(Statement stmt)
+		{
+		Resource o=extactResource(stmt);
+		return this.instanceFactory.createObjectFromResource(extactResource(stmt));
+		}
+	
+	class MyIterator extends StatementListIterator
+		{
+		MyIterator(StmtIterator iter)
+			{
+			super(iter);
+			}
+
+		
+		@Override
+		public T next()
+			{
+			return ResourceList.this.createInstance(iter.nextStatement());
+			}
+		
+		}
+	}
+
+protected class MeSubjectList<T> extends ResourceList<T>
+	{
+	MeSubjectList(
+		Resource subject,
+		Property predicate,
+		Resource T_type,
+		InstanceFactory<T> createInstanceFactory
+		)
+		{
+		super(subject,predicate,T_type,createInstanceFactory);
+		}
+	
+	@Override
+	protected StmtIterator createStmtIterator()
+		{
+		StmtIterator iter=${mainClass}.this.getModel().listStatements(
+				super.pivot,
+				super.predicate,
+				(Resource)null
+				);
+		iter.filterKeep(new Filter<Statement>()
+			{
+			@Override
+			public boolean accept(Statement candidate)
+			 	{
+			 	return accept(candidate.getObject());
+			 	}
+			});
+		return iter;
+		}
+
+	private boolean accept(RDFNode candidate)
+	 	{
+	 	if(!candidate.isResource()) return false;
+	 	if(!candidate.asResource().hasProperty(
+	 		com.hp.hpl.jena.vocabulary.RDF.type,
+	 		T_type)) return false;
+	 	return true;
+	 	}
+		
+	
+	@Override
+	protected  Resource extactResource(Statement stmt)
+		{
+		return stmt.getObject().asResource();
+		}
+	}
+	
+
+protected class MeObjectList<T> extends ResourceList<T>
+	{
+	MeObjectList(
+		Resource object,
+		Property predicate,
+		Resource T_type,
+		InstanceFactory<T> createInstanceFactory
+		)
+		{
+		super(object,predicate,T_type,createInstanceFactory);
+		}
+	
+	@Override
+	protected StmtIterator createStmtIterator()
+		{
+		StmtIterator iter=${mainClass}.this.getModel().listStatements(
+				null,
+				super.predicate,
+				super.pivot
+				);
+		iter.filterKeep(new Filter<Statement>()
+			{
+			@Override
+			public boolean accept(Statement candidate)
+			 	{
+			 	return accept(candidate.getSubject());
+			 	}
+			});
+		return iter;
+		}
+
+	private boolean accept(Resource candidate)
+	 	{
+	 	if(!candidate.hasProperty(
+	 		com.hp.hpl.jena.vocabulary.RDF.type,
+	 		T_type)) return false;
+	 	return true;
+	 	}
+		
+	
+	@Override
+	protected  Resource extactResource(Statement stmt)
+		{
+		return stmt.getSubject();
+		}
+	}
+	
+
+protected class ListAll<T> extends IteratorList<T>
+	{
+	Resource T_type;
+	InstanceFactory<T> createInstanceFactory;
+	
+	ListAll(
+		Resource T_type,
+		InstanceFactory<T> createInstanceFactory
+		)
+		{
+		this.T_type=T_type;
+		this.createInstanceFactory=createInstanceFactory;
+		}
+	
+	@Override
+	public ExtendedIterator<T> iterator()
+		{
+		return new MyIterator();
+		}
+	class MyIterator extends NiceIterator<T>
+		{
+		StmtIterator iter;
+		MyIterator()
+			{
+			iter=${mainClass}.this.getModel().listStatements(
+				null,
+				com.hp.hpl.jena.vocabulary.RDF.type,
+				T_type
+				);
+			}
+
+		@Override
+		public boolean hasNext()
+			{
+			return this.iter.hasNext();
+			}
+		@Override
+		public T next()
+			{
+			Statement stmt=iter.nextStatement();
+			return ListAll.this.createInstanceFactory.createObjectFromResource(stmt.getSubject());
+			}
+		
+		@Override
+		public void close()
+			{
+			iter.close();
+			super.close();
+			}
+		}
+	}
+
+
+}

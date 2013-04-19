@@ -7,12 +7,46 @@
 
 
 
-<target name="all" depends="jenaorm"></target>
+<target name="all" depends="tests"></target>
+
+<target name="tests" depends="jenaorm">
+	<mkdir dir="tmp"/>
+	 <java jar="dist/jenaorm.jar"
+           fork="true"
+           failonerror="true"
+           >
+           	<arg value="-p"/> <arg value="generated"/>
+           	<arg value="-D"/> <arg value="tmp"/>
+         	<arg value="src/test/resources/schema.in"/>
+         </java>
+        <pathconvert property="jenaorm.claspath" pathsep=" ">
+		<path refid="lib.path.id" />
+	</pathconvert>
+	<echo>${jenaorm.claspath}</echo>
+         <javac srcdir="tmp" destdir="tmp" debug="true" includeantruntime="no">
+		<classpath refid="lib.path.id"/>
+		<include name="**/*.java" />
+	</javac>
+	<!-- <javadoc sourcepath="tmp" destdir="tmp" access="public">
+	</javadoc> -->
+	<jar destfile="dist/test.jar" basedir="tmp">
+		<manifest>
+			<attribute name="Built-By" value="${user.name}"/>
+
+		</manifest>
+	</jar>
+</target>
 
 
 <target name="jenaorm" depends="generate-sources,ivy.libs">
 	<mkdir dir="dist"/>
 	<mkdir dir="tmp"/>
+	<mkdir dir="tmp/velocity"/>
+	
+	 <copy todir="tmp/velocity">
+	 	<fileset dir="src/main/resources/velocity"/>
+	 </copy>
+	
 	<javac srcdir="src/main/generated-sources" destdir="tmp" debug="true" includeantruntime="no">
 		<classpath refid="lib.path.id"/>
 		<sourcepath>
@@ -75,6 +109,8 @@
     <ivy:cachepath pathid="lib.path.id"/>
   </target>
 
-
+<target name="ivy.clean">
+	<ivy:cleancache />
+</target>
 
 </project>
